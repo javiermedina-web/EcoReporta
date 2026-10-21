@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EcoReporta</title>
+  <link rel="stylesheet" href="Eco_estilo.css">
+</head>
+<body>
+  <img src="dgeta.png" width="160" height="140">
+
+  <h1>EcoReporta</h1>
+  <h3>Inicio de sesión</h3>
+
+  <form id="loginForm">
+    <input type="email" id="correo" placeholder="Correo" required><br>
+    <input type="password" id="contraseña" placeholder="Contraseña" required><br>
+    <button type="submit">Iniciar sesión</button><br>
+  </form>
+
+  <a href="https://cbta197.edu.mx/">Portal del CBTa.196</a><br>
+  <a href="https://www.instagram.com/cbta197/?hl=en">Instagram</a><br>
+  <a href="https://www.facebook.com/CBTA197OFICIAL">Facebook</a>
+
+  <script>
+  const form = document.getElementById("loginForm");
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+
+    const correo = document.getElementById("correo").value.trim();
+    const contraseña = document.getElementById("contraseña").value.trim();
+
+    const regex = /^[a-zA-Z0-9._%+-]+@cbta197\.net$/;
+
+    if(regex.test(correo) && contraseña){
+      window.location.href = "Reporte.html";
+    } else {
+      alert("El correo debe terminar en @cbta197.net y la contraseña no puede estar vacía hermanito.");
+    }
+  });
+  </script>
+</body>
+</html>

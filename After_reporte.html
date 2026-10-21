@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EcoReporta - Gracias por reportar el problema</title>
+  <link rel="stylesheet" href="Eco_estilo.css">
+</head>
+<body>
+  <img src="dgeta.png" width="160" height="140">
+
+  <h1>EcoReporta</h1>
+  <h3>¡Gracias por su reporte!</h3>
+  
+  <button id="volverBtn">Volver al inicio</button>
+
+  <script>
+    const volverBtn = document.getElementById("volverBtn");
+    volverBtn.addEventListener("click", function(){
+      window.location.href = "index.html";
+    });
+  </script>
+</body>
+</html>
