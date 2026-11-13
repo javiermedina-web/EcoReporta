@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrador</title>
+<base target="_blank">
+</head>
+
+<body>
+
+    <h1>Panel de Administración</h1>
+
+    <table border="1">
+        <tr>
+            <th>ID</th>
+            <th>Lugar</th>
+            <th>Problema</th>
+            <th>Prioridad</th>
+            <th>Estado</th>
+            <th>Reporte</th>
+        </tr>
+
+        {% for r in reportes %}
+        <tr>
+            <td>{{ "%03d" % r.id_reporte }}</td>
+            <td>{{ r.nombre_area }}</td>
+            <td>{{ r.problema }}</td>
+            <td>
+                {% if r.nombre_prioridad == "Alta" %}🔴
+                {% elif r.nombre_prioridad == "Media" %}🟡
+                {% else %}🟢{% endif %}
+                {{ r.nombre_prioridad }}
+            </td>
+            <td>{{ r.nombre_estado }}</td>
+            <td>
+              <button data-id="{{ r.id_reporte }}" onclick="verReporte(Number(this.dataset.id))">
+                    Ver
+                </button>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="6">No hay reportes registrados.</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <hr>
+
+    <div id="detalleReporte" style="display:none;">
+    </div>
+
+    <script id="datos-flask" type="application/json">
+    // Datos que vienen de Flask (base de datos)
+    
+    const REPORTES     = {{ reportes|tojson }};
+    const PRIORIDADES  = {{ prioridades|tojson }};
+    const ESTADOS      = {{ estados|tojson }};
+
+    let reporteActual = null;
+
+    function verReporte(id){
+        // Buscar el reporte completo en los datos
+        reporteActual = REPORTES.find(r => r.id_reporte === id);
+        if (!reporteActual) return;
+
+        // Construir las opciones de los select con los valores de la BD
+        const opcionesPrioridad = PRIORIDADES.map(p =>
+            `<option value="${p.id_prioridad}"
+                ${p.id_prioridad === reporteActual.id_prioridad ? "selected" : ""}>
+                ${p.nombre_prioridad}</option>`
+        ).join("");
+
+        const opcionesEstado = ESTADOS.map(e =>
+            `<option value="${e.id_estado}"
+                ${e.id_estado === reporteActual.id_estado ? "selected" : ""}>
+                ${e.nombre_estado}</option>`
+        ).join("");
+
+        const imagen = reporteActual.fotografia
+            ? `<img src="${reporteActual.fotografia}" width="250">`
+            : "<p><em>Sin fotografía</em></p>";
+
+        const motivo = reporteActual.motivo_ia
+            ? `<p><strong>Análisis IA:</strong> ${reporteActual.motivo_ia}</p>`
+            : "";
+
+        const detalle = document.getElementById("detalleReporte");
+        detalle.style.display = "block";
+        detalle.innerHTML = `
+            <button onclick="cerrarReporte()">
+                ↩ Volver a la lista
+            </button>
+            <h2>Detalles del reporte #${reporteActual.id_reporte}</h2>
+            <p><strong>Lugar:</strong> ${reporteActual.nombre_area}</p>
+            <p><strong>Problema:</strong> ${reporteActual.problema}</p>
+            <p><strong>Descripción:</strong> ${reporteActual.descripcion}</p>
+            <p><strong>Fecha:</strong> ${reporteActual.fecha || ""}</p>
+            ${motivo}
+            <p><strong>Prioridad:</strong></p>
+            <select id="selPrioridad">${opcionesPrioridad}</select>
+            <br><br>
+            <p><strong>Estado:</strong></p>
+            <select id="selEstado">${opcionesEstado}</select>
+            <br><br>
+            <button onclick="guardarCambios()">
+                💾 Guardar cambios
+            </button>
+            <button onclick="eliminarReporte()">
+                🗑 Eliminar reporte
+            </button>
+            <br><br>
+            ${imagen}
+        `;
+    }
+
+    function cerrarReporte(){
+        document.getElementById("detalleReporte")
+            .style.display = "none";
+        reporteActual = null;
+    }
+
+    async function guardarCambios(){
+        if (!reporteActual) return;
+
+        const respuesta = await fetch("/administrador/actualizar", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                id_reporte: reporteActual.id_reporte,
+                id_prioridad: document.getElementById("selPrioridad").value,
+                id_estado: document.getElementById("selEstado").value
+            })
+        });
+        const datos = await respuesta.json();
+
+        if (datos.ok){
+            alert("Cambios guardados correctamente.");
+            location.reload();
+        } else {
+            alert("Error al guardar: " + (datos.error || "desconocido"));
+        }
+    }
+
+    async function eliminarReporte(){
+        if (!reporteActual) return;
+
+        const confirmar = confirm("¿Deseas eliminar este reporte?");
+        if (!confirmar) return;
+
+        const respuesta = await fetch(
+            "/administrador/eliminar/" + reporteActual.id_reporte,
+            {method: "POST"}
+        );
+        const datos = await respuesta.json();
+
+        if (datos.ok){
+            alert("Reporte eliminado.");
+            location.reload();
+        } else {
+            alert("Error al eliminar: " + (datos.error || "desconocido"));
+        }
+    }
+    </script>
+
+    <footer>
+        <hr>
+        <h4>Enlaces del plantel</h4>
+        <a href="https://cbta197.edu.mx/" target="_blank">
+            Portal del CBTa.197
+        </a>
+        <br>
+        <a href="https://www.instagram.com/cbta197/?hl=en"
+           target="_blank">
+            Instagram
+        </a>
+        <br>
+        <a href="https://www.facebook.com/CBTA197OFICIAL"
+           target="_blank">
+            Facebook
+        </a>
+        <p>&copy; 2026 EcoReporta - CBTa 197</p>
+        <button id="volverBtn">
+            Volver al inicio
+        </button>
+    </footer>
+    <script>
+    const volverBtn =
+    document.getElementById("volverBtn");
+    volverBtn.addEventListener("click", function(){
+        window.location.href = "{{ url_for('index') }}";
+    });
+    </script>
+</body>
+</html>

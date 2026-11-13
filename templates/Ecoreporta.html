@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reporte</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    form { max-width: 400px; }
+    label { display: block; margin-top: 12px; }
+    select, textarea, button {
+      width: 100%; margin: 8px 0; padding: 8px; box-sizing: border-box;
+    }
+    textarea { min-height: 100px; }
+    input[type="file"] { margin: 8px 0; width: 100%; }
+    button {
+      background-color: #c23535; color: white; border: none; cursor: pointer;
+    }
+    button:hover { background-color: #1a5bb8; }
+    footer { margin-top: 30px; }
+
+    /* ---------- SEMAFORO ---------- */
+    .luces { display: flex; gap: 12px; margin: 10px 0; }
+    .luz {
+      width: 60px; height: 60px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #333; font-weight: bold; font-size: 12px;
+      background: #ddd; border: 3px solid #999; opacity: 0.35;
+    }
+    .luz.encendida { opacity: 1; }
+    #luzBaja.encendida    { background: #2ecc71; border-color: #27ae60; color: #fff; }
+    #luzMedia.encendida   { background: #f1c40f; border-color: #f39c12; color: #fff; }
+    #luzAlta.encendida    { background: #e74c3c; border-color: #c0392b; color: #fff; }
+    #resultadoIA { display: none; max-width: 400px; margin-top: 15px;
+                   padding: 12px; border: 1px solid #ccc; border-radius: 8px; }
+  </style>
+</head>
+<body>
+
+  <h1>Reporta tus problemas</h1>
+
+  <form id="reportForm" enctype="multipart/form-data">
+    <input type="hidden" name="id_usuario" value="1">
+
+    <label for="lugar">Selecciona el lugar:</label>
+    <select id="lugar" name="id_area" required>
+      <option value="">-- Elige un lugar --</option>
+      <option value="1">Jardín Principal</option>
+      <option value="2">Cafetería</option>
+      <option value="3">Edificio A - Aulas</option>
+    </select>
+
+    <label for="problema">Selecciona el problema:</label>
+    <select id="problema" name="problema" required>
+      <option value="">-- Elige un problema --</option>
+      <option value="Pupitre dañado">Pupitre dañado</option>
+      <option value="Proyector descompuesto">Proyector descompuesto</option>
+      <option value="Aire acondicionado dañado">Aire acondicionado dañado</option>
+      <option value="Baño fuera de servicio">Baño fuera de servicio</option>
+      <option value="Falta de limpieza">Falta de limpieza</option>
+      <option value="Lámpara dañada">Lámpara dañada</option>
+      <option value="Fuga de agua">Fuga de agua</option>
+      <option value="Problema eléctrico">Problema eléctrico</option>
+      <option value="Otro">Otro</option>
+    </select>
+
+    <label for="descripcion">Descripción del problema:</label>
+    <textarea id="descripcion" name="descripcion" maxlength="500" required></textarea>
+    <small>Máximo 500 caracteres.</small>
+
+    <label for="foto">Adjuntar fotografía:</label>
+    <input type="file" id="foto" name="foto" accept="image/jpeg,image/png,image/webp" required>
+    <img id="preview" width="250" alt="Vista previa de la fotografía">
+
+    <button type="submit">Enviar reporte</button>
+  </form>
+
+  <p id="mensaje"></p>
+
+  <!-- Semaforo: se enciende cuando la IA responde -->
+  <div id="resultadoIA">
+    <strong>Prioridad sugerida por la IA:</strong>
+    <div class="luces">
+      <div class="luz" id="luzBaja">Baja</div>
+      <div class="luz" id="luzMedia">Media</div>
+      <div class="luz" id="luzAlta">Alta</div>
+    </div>
+    <p><strong>Confianza:</strong> <span id="confianzaTxt"></span></p>
+    <p><strong>Motivo:</strong> <span id="motivoTxt"></span></p>
+  </div>
+
+  <script>
+    const formulario = document.getElementById("reportForm");
+    const mensaje = document.getElementById("mensaje");
+    const foto = document.getElementById("foto");
+    const preview = document.getElementById("preview");
+
+    // ----- Vista previa de la fotografia -----
+    let urlVistaPrevia = "";
+    foto.addEventListener("change", function () {
+      const archivo = foto.files[0];
+      if (!archivo) { preview.removeAttribute("src"); return; }
+      // Validacion en el navegador (el servidor la vuelve a verificar)
+      if (!["image/jpeg", "image/png", "image/webp"].includes(archivo.type)) {
+        mensaje.textContent = "Solo se permiten fotos JPG, PNG o WEBP.";
+        foto.value = "";
+        return;
+      }
+      if (archivo.size > 5 * 1024 * 1024) {
+        mensaje.textContent = "La foto supera 5 MB. Elige una mas pequeña.";
+        foto.value = "";
+        return;
+      }
+      if (urlVistaPrevia) URL.revokeObjectURL(urlVistaPrevia);
+      urlVistaPrevia = URL.createObjectURL(archivo);
+      preview.src = urlVistaPrevia;
+      mensaje.textContent = "";
+    });
+
+    // ----- Envio del reporte (UN solo handler) -----
+    formulario.addEventListener("submit", async function (evento) {
+      evento.preventDefault();
+      mensaje.textContent = "La IA esta evaluando el reporte...";
+
+      try {
+        const respuesta = await fetch("/api/reportes", {
+          method: "POST",
+          body: new FormData(formulario)
+        });
+        const resultado = await respuesta.json();
+
+        if (!respuesta.ok || !resultado.ok) {
+          throw new Error(resultado.mensaje || "No se pudo procesar el reporte.");
+        }
+
+        // Encender el semaforo segun la prioridad
+        document.getElementById("resultadoIA").style.display = "block";
+        ["Baja", "Media", "Alta"].forEach(function (p) {
+          document.getElementById("luz" + p).classList.remove("encendida");
+        });
+        document.getElementById("luz" + resultado.prioridad).classList.add("encendida");
+        document.getElementById("confianzaTxt").textContent = resultado.confianza;
+        document.getElementById("motivoTxt").textContent = resultado.motivo;
+        mensaje.textContent = "";
+
+        // Alerta visible si es prioridad ALTA (la notificacion al admin llega en etapa de notificaciones)
+        if (resultado.prioridad === "Alta") {
+          alert("REPORTE DE PRIORIDAD ALTA - Folio #" + resultado.id_reporte +
+                "\n\n" + resultado.motivo);
+        } else {
+          alert("Reporte guardado. Folio #" + resultado.id_reporte);
+        }
+
+        window.location.href = "{{ url_for('After_reporte') }}";
+
+      } catch (error) {
+        console.error(error);
+        mensaje.textContent = error.message;
+      }
+    });
+  </script>
+
+  <footer>
+    <hr>
+    <h4>Enlaces del plantel</h4>
+    <a href="https://cbta197.edu.mx/" target="_blank">Portal del CBTa 197</a><br>
+    <a href="https://www.instagram.com/cbta197/?hl=en" target="_blank">Instagram</a><br>
+    <a href="https://www.facebook.com/CBTA197OFICIAL" target="_blank">Facebook</a>
+    <p>&copy; 2026 EcoReporta - CBTa 197</p>
+  </footer>
+</body>
+</html>
