@@ -48,6 +48,7 @@
 
     <h1>Dashboard de Administración</h1>
 
+    <script id="datos-flask" type="application/json">
     <!-- ============ 1. TARJETAS RESUMEN ============ -->
     {% set pendientes = por_estado | selectattr("nombre_estado", "equalto", "Pendiente") | map(attribute="total") | list %}
     {% set proceso    = por_estado | selectattr("nombre_estado", "equalto", "En proceso") | map(attribute="total") | list %}
