@@ -1,321 +1,248 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Administrador</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-
-        /* ---------- TARJETAS DEL DASHBOARD ---------- */
-        .dashboard { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 25px; }
-        .card {
-            flex: 1; min-width: 140px; padding: 15px;
-            border-radius: 10px; color: #fff; text-align: center;
-        }
-        .card h2 { margin: 5px 0; font-size: 32px; }
-        .card p  { margin: 0; font-size: 14px; }
-        .c-total    { background: #2e5e4e; }
-        .c-alta     { background: #c0392b; }
-        .c-pend     { background: #e67e22; }
-        .c-proc     { background: #2980b9; }
-        .c-res      { background: #27ae60; }
-
-        /* ---------- GRAFICAS DE BARRAS ---------- */
-        .graficas { display: flex; gap: 25px; flex-wrap: wrap; margin-bottom: 30px; }
-        .panel { flex: 1; min-width: 280px; }
-        .panel h3 { margin-bottom: 10px; }
-        .fila-barra { display: flex; align-items: center; margin-bottom: 6px; }
-        .fila-barra .etiqueta { width: 120px; font-size: 13px; }
-        .fila-barra .contador { width: 30px; text-align: right; font-size: 13px; margin-left: 5px; }
-        .barra-fondo { flex: 1; background: #e5e5e5; border-radius: 5px; height: 18px; }
-        .barra-relleno { height: 100%; border-radius: 5px; background: #2e5e4e; }
-        .barra-alta  { background: #c0392b; }
-        .barra-media { background: #e6b800; }
-        .barra-baja  { background: #27ae60; }
-
-        /* ---------- TABLA ---------- */
-        table { border-collapse: collapse; width: 100%; }
-        th, td { padding: 8px; border: 1px solid #bbb; }
-        th { background: #2e5e4e; color: #fff; }
-        tr:nth-child(even) { background: #f4f4f4; }
-        button { cursor: pointer; }
-    </style>
-<base target="_blank">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard de Administración - EcoReporta</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f4f6f9;
+      color: #222;
+    }
+    h1 { margin-top: 0; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .card h3 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #666;
+      text-transform: uppercase;
+    }
+    .card .numero {
+      font-size: 28px;
+      font-weight: bold;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      background: #1a73e8;
+      color: white;
+      font-weight: 600;
+    }
+    tr:hover { background: #f8f9fa; }
+    select, button {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 13px;
+    }
+    button {
+      cursor: pointer;
+      background: #1a73e8;
+      color: white;
+      border: none;
+    }
+    button:hover { background: #1557b0; }
+    button.peligro {
+      background: #d93025;
+    }
+    button.peligro:hover { background: #b3261e; }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-Baja   { background: #e6f4ea; color: #137333; }
+    .badge-Media  { background: #fef7e0; color: #b06000; }
+    .badge-Alta   { background: #fce8e6; color: #c5221f; }
+    .motivo {
+      font-size: 12px;
+      color: #555;
+      max-width: 280px;
+    }
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #ddd;
+      font-size: 14px;
+    }
+    #mensaje {
+      margin: 15px 0;
+      padding: 10px 15px;
+      border-radius: 6px;
+      display: none;
+    }
+    #mensaje.ok { background: #e6f4ea; color: #137333; display: block; }
+    #mensaje.error { background: #fce8e6; color: #c5221f; display: block; }
+  </style>
 </head>
-
 <body>
 
-    <h1>Dashboard de Administración</h1>
+  <h1>Dashboard de Administración</h1>
 
-    <script id="datos-flask" type="application/json">
-    <!-- ============ 1. TARJETAS RESUMEN ============ -->
-    {% set pendientes = por_estado | selectattr("nombre_estado", "equalto", "Pendiente") | map(attribute="total") | list %}
-    {% set proceso    = por_estado | selectattr("nombre_estado", "equalto", "En proceso") | map(attribute="total") | list %}
-    {% set resueltos  = por_estado | selectattr("nombre_estado", "equalto", "Resuelto") | map(attribute="total") | list %}
-    {% set alta       = por_prioridad | selectattr("nombre_prioridad", "equalto", "Alta") | map(attribute="total") | list %}
+  <div id="mensaje"></div>
 
-    <div class="dashboard">
-        <div class="card c-total">
-            <h2>{{ stats.total }}</h2><p>Total de reportes</p>
-        </div>
-        <div class="card c-alta">
-            <h2>{{ alta[0] if alta else 0 }}</h2><p>Prioridad alta ⚠️</p>
-        </div>
-        <div class="card c-pend">
-            <h2>{{ pendientes[0] if pendientes else 0 }}</h2><p>Pendientes</p>
-        </div>
-        <div class="card c-proc">
-            <h2>{{ proceso[0] if proceso else 0 }}</h2><p>En proceso</p>
-        </div>
-        <div class="card c-res">
-            <h2>{{ resueltos[0] if resueltos else 0 }}</h2><p>Resueltos</p>
-        </div>
+  <!-- ============ ESTADÍSTICAS ============ -->
+  <div class="stats">
+    <div class="card">
+      <h3>Total de reportes</h3>
+      <div class="numero">{{ stats.total if stats else 0 }}</div>
     </div>
 
-    <!-- ============ 2. GRAFICAS ============ -->
-    <div class="graficas">
-
-        <!-- Reportes por estado -->
-        {% if por_estado %}
-        {% set max_estado = por_estado | map(attribute="total") | max %}
-        <div class="panel">
-            <h3>Reportes por estado</h3>
-            {% for e in por_estado %}
-            <div class="fila-barra">
-                <div class="etiqueta">{{ e.nombre_estado }}</div>
-                <div class="barra-fondo">
-                    <div class="barra-relleno"
-                         style="width: {{ ((e.total / max_estado * 100) | round | int) if max_estado else 0 }}%">
-                    </div>
-                </div>
-                <div class="contador">{{ e.total }}</div>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- Reportes por prioridad -->
-        {% if por_prioridad %}
-        {% set max_prio = por_prioridad | map(attribute="total") | max %}
-        <div class="panel">
-            <h3>Reportes por prioridad</h3>
-            {% for p in por_prioridad %}
-            <div class="fila-barra">
-                <div class="etiqueta">{{ p.nombre_prioridad }}</div>
-                <div class="barra-fondo">
-                    <div class="barra-relleno barra-{{ p.nombre_prioridad | lower }}"
-                         style="width: {{ ((p.total / max_prio * 100) | round | int) if max_prio else 0 }}%">
-                    </div>
-                </div>
-                <div class="contador">{{ p.total }}</div>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- Reportes por area -->
-        {% if por_area %}
-        {% set max_area = por_area | map(attribute="total") | max %}
-        <div class="panel">
-            <h3>Reportes por área</h3>
-            {% for a in por_area %}
-            <div class="fila-barra">
-                <div class="etiqueta">{{ a.nombre_area }}</div>
-                <div class="barra-fondo">
-                    <div class="barra-relleno"
-                         style="width: {{ ((a.total / max_area * 100) | round | int) if max_area else 0 }}%">
-                    </div>
-                </div>
-                <div class="contador">{{ a.total }}</div>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
+    {% for e in por_estado %}
+    <div class="card">
+      <h3>{{ e.nombre_estado }}</h3>
+      <div class="numero">{{ e.total }}</div>
     </div>
+    {% endfor %}
+  </div>
 
-    <hr>
+  <!-- ============ TABLA DE REPORTES ============ -->
+  <h2>Reportes registrados</h2>
 
-    <!-- ============ 3. TABLA DE REPORTES (editable) ============ -->
-    <h2>Lista de reportes</h2>
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>Lugar</th>
-            <th>Problema</th>
-            <th>Prioridad</th>
-            <th>Estado</th>
-            <th>Acción</th>
-        </tr>
+  {% if reportes %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Fecha</th>
+        <th>Área</th>
+        <th>Problema</th>
+        <th>Descripción</th>
+        <th>Prioridad</th>
+        <th>Estado</th>
+        <th>Motivo IA</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reportes %}
+      <tr id="fila-{{ r.id_reporte }}">
+        <td>#{{ r.id_reporte }}</td>
+        <td>{{ r.fecha }}</td>
+        <td>{{ r.nombre_area }}</td>
+        <td>{{ r.problema }}</td>
+        <td>{{ r.descripcion[:80] }}{% if r.descripcion|length > 80 %}...{% endif %}</td>
+        <td>
+          <select id="prioridad-{{ r.id_reporte }}">
+            {% for p in prioridades %}
+            <option value="{{ p.id_prioridad }}"
+              {% if p.id_prioridad == r.id_prioridad %}selected{% endif %}>
+              {{ p.nombre_prioridad }}
+            </option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <select id="estado-{{ r.id_reporte }}">
+            {% for e in estados %}
+            <option value="{{ e.id_estado }}"
+              {% if e.id_estado == r.id_estado %}selected{% endif %}>
+              {{ e.nombre_estado }}
+            </option>
+            {% endfor %}
+          </select>
+        </td>
+        <td class="motivo">{{ r.motivo_ia or '—' }}</td>
+        <td>
+          <button onclick="guardar({{ r.id_reporte }})">Guardar</button>
+          <button class="peligro" onclick="eliminar({{ r.id_reporte }})">Eliminar</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No hay reportes registrados todavía.</p>
+  {% endif %}
 
-        {% for r in reportes %}
-        <tr>
-            <td>{{ "%03d" % r.id_reporte }}</td>
-            <td>{{ r.nombre_area }}</td>
-            <td>{{ r.problema }}</td>
-            <td>
-                {% if r.nombre_prioridad == "Alta" %}🔴
-                {% elif r.nombre_prioridad == "Media" %}🟡
-                {% else %}🟢{% endif %}
-                {{ r.nombre_prioridad }}
-            </td>
-            <td>{{ r.nombre_estado }}</td>
-            <td>
-                <button onclick="verReporte({{ r.id_reporte }})">
-                    Ver / Editar
-                </button>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="6">No hay reportes registrados.</td>
-        </tr>
-        {% endfor %}
-    </table>
-    <hr>
+  <footer>
+    <h4>Enlaces del plantel</h4>
+    <a href="https://cbta197.edu.mx/" target="_blank">Portal del CBTa 197</a><br>
+    <a href="https://www.instagram.com/cbta197/?hl=en" target="_blank">Instagram</a><br>
+    <a href="https://www.facebook.com/CBTA197OFICIAL" target="_blank">Facebook</a>
+    <p>&copy; 2026 EcoReporta - CBTa 197</p>
+    <button onclick="window.location.href='{{ url_for('index') }}'">Volver al inicio</button>
+  </footer>
 
-    <!-- ============ 4. PANEL DE EDICION ============ -->
-    <div id="detalleReporte" style="display:none;">
-    </div>
-
-    <script>
-    // Datos que vienen de Flask (base de datos)
-    const REPORTES     = {{ reportes|tojson }};
-    const PRIORIDADES  = {{ prioridades|tojson }};
-    const ESTADOS      = {{ estados|tojson }};
-
-    let reporteActual = null;
-
-    function verReporte(id){
-        reporteActual = REPORTES.find(r => r.id_reporte === id);
-        if (!reporteActual) return;
-
-        const opcionesPrioridad = PRIORIDADES.map(p =>
-            `<option value="${p.id_prioridad}"
-                ${p.id_prioridad === reporteActual.id_prioridad ? "selected" : ""}>
-                ${p.nombre_prioridad}</option>`
-        ).join("");
-
-        const opcionesEstado = ESTADOS.map(e =>
-            `<option value="${e.id_estado}"
-                ${e.id_estado === reporteActual.id_estado ? "selected" : ""}>
-                ${e.nombre_estado}</option>`
-        ).join("");
-
-        const imagen = reporteActual.fotografia
-            ? `<img src="${reporteActual.fotografia}" width="250">`
-            : "<p><em>Sin fotografía</em></p>";
-
-        const motivo = reporteActual.motivo_ia
-            ? `<p><strong>Análisis IA:</strong> ${reporteActual.motivo_ia}</p>`
-            : "";
-
-        const detalle = document.getElementById("detalleReporte");
-        detalle.style.display = "block";
-        detalle.scrollIntoView({behavior: "smooth"});
-        detalle.innerHTML = `
-            <button onclick="cerrarReporte()">
-                ↩ Volver a la lista
-            </button>
-            <h2>Detalles del reporte #${reporteActual.id_reporte}</h2>
-            <p><strong>Lugar:</strong> ${reporteActual.nombre_area}</p>
-            <p><strong>Problema:</strong> ${reporteActual.problema}</p>
-            <p><strong>Descripción:</strong> ${reporteActual.descripcion}</p>
-            <p><strong>Fecha:</strong> ${reporteActual.fecha || ""}</p>
-            ${motivo}
-            <p><strong>Prioridad:</strong></p>
-            <select id="selPrioridad">${opcionesPrioridad}</select>
-            <br><br>
-            <p><strong>Estado:</strong></p>
-            <select id="selEstado">${opcionesEstado}</select>
-            <br><br>
-            <button onclick="guardarCambios()">
-                💾 Guardar cambios
-            </button>
-            <button onclick="eliminarReporte()">
-                🗑 Eliminar reporte
-            </button>
-            <br><br>
-            ${imagen}
-        `;
+  <script>
+    function mostrarMensaje(texto, esError = false) {
+      const el = document.getElementById("mensaje");
+      el.textContent = texto;
+      el.className = esError ? "error" : "ok";
+      setTimeout(() => { el.style.display = "none"; el.className = ""; }, 4000);
     }
 
-    function cerrarReporte(){
-        document.getElementById("detalleReporte")
-            .style.display = "none";
-        reporteActual = null;
-    }
+    async function guardar(id) {
+      const id_prioridad = document.getElementById("prioridad-" + id).value;
+      const id_estado = document.getElementById("estado-" + id).value;
 
-    async function guardarCambios(){
-        if (!reporteActual) return;
-
-        const respuesta = await fetch("/administrador/actualizar", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                id_reporte: reporteActual.id_reporte,
-                id_prioridad: document.getElementById("selPrioridad").value,
-                id_estado: document.getElementById("selEstado").value
-            })
+      try {
+        const res = await fetch("/administrador/actualizar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id_reporte: id,
+            id_prioridad: parseInt(id_prioridad),
+            id_estado: parseInt(id_estado)
+          })
         });
-        const datos = await respuesta.json();
-
-        if (datos.ok){
-            alert("Cambios guardados correctamente.");
-            location.reload();
+        const data = await res.json();
+        if (data.ok) {
+          mostrarMensaje("Reporte #" + id + " actualizado correctamente.");
         } else {
-            alert("Error al guardar: " + (datos.error || "desconocido"));
+          mostrarMensaje(data.error || "Error al actualizar", true);
         }
+      } catch (err) {
+        mostrarMensaje("Error de conexión: " + err.message, true);
+      }
     }
 
-    async function eliminarReporte(){
-        if (!reporteActual) return;
+    async function eliminar(id) {
+      if (!confirm("¿Seguro que quieres eliminar el reporte #" + id + "?")) return;
 
-        const confirmar = confirm("¿Deseas eliminar este reporte?");
-        if (!confirmar) return;
-
-        const respuesta = await fetch(
-            "/administrador/eliminar/" + reporteActual.id_reporte,
-            {method: "POST"}
-        );
-        const datos = await respuesta.json();
-
-        if (datos.ok){
-            alert("Reporte eliminado.");
-            location.reload();
+      try {
+        const res = await fetch("/administrador/eliminar/" + id, {
+          method: "POST"
+        });
+        const data = await res.json();
+        if (data.ok) {
+          document.getElementById("fila-" + id).remove();
+          mostrarMensaje("Reporte #" + id + " eliminado.");
         } else {
-            alert("Error al eliminar: " + (datos.error || "desconocido"));
+          mostrarMensaje(data.error || "Error al eliminar", true);
         }
+      } catch (err) {
+        mostrarMensaje("Error de conexión: " + err.message, true);
+      }
     }
-    </script>
-
-    <footer>
-        <hr>
-        <h4>Enlaces del plantel</h4>
-        <a href="https://cbta197.edu.mx/" target="_blank">
-            Portal del CBTa.197
-        </a>
-        <br>
-        <a href="https://www.instagram.com/cbta197/?hl=en"
-           target="_blank">
-            Instagram
-        </a>
-        <br>
-        <a href="https://www.facebook.com/CBTA197OFICIAL"
-           target="_blank">
-            Facebook
-        </a>
-        <p>&copy; 2026 EcoReporta - CBTa 197</p>
-        <button id="volverBtn">
-            Volver al inicio
-        </button>
-    </footer>
-    <script>
-    const volverBtn =
-    document.getElementById("volverBtn");
-    volverBtn.addEventListener("click", function(){
-        window.location.href = "{{ url_for('index') }}";
-    });
-    </script>
+  </script>
 </body>
 </html>
