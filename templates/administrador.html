@@ -3,22 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administrador</title>
+    <title>Dashboard - Administrador</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+
+        /* ---------- TARJETAS DEL DASHBOARD ---------- */
+        .dashboard { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 25px; }
+        .card {
+            flex: 1; min-width: 140px; padding: 15px;
+            border-radius: 10px; color: #fff; text-align: center;
+        }
+        .card h2 { margin: 5px 0; font-size: 32px; }
+        .card p  { margin: 0; font-size: 14px; }
+        .c-total    { background: #2e5e4e; }
+        .c-alta     { background: #c0392b; }
+        .c-pend     { background: #e67e22; }
+        .c-proc     { background: #2980b9; }
+        .c-res      { background: #27ae60; }
+
+        /* ---------- GRAFICAS DE BARRAS ---------- */
+        .graficas { display: flex; gap: 25px; flex-wrap: wrap; margin-bottom: 30px; }
+        .panel { flex: 1; min-width: 280px; }
+        .panel h3 { margin-bottom: 10px; }
+        .fila-barra { display: flex; align-items: center; margin-bottom: 6px; }
+        .fila-barra .etiqueta { width: 120px; font-size: 13px; }
+        .fila-barra .contador { width: 30px; text-align: right; font-size: 13px; margin-left: 5px; }
+        .barra-fondo { flex: 1; background: #e5e5e5; border-radius: 5px; height: 18px; }
+        .barra-relleno { height: 100%; border-radius: 5px; background: #2e5e4e; }
+        .barra-alta  { background: #c0392b; }
+        .barra-media { background: #e6b800; }
+        .barra-baja  { background: #27ae60; }
+
+        /* ---------- TABLA ---------- */
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 8px; border: 1px solid #bbb; }
+        th { background: #2e5e4e; color: #fff; }
+        tr:nth-child(even) { background: #f4f4f4; }
+        button { cursor: pointer; }
+    </style>
 <base target="_blank">
 </head>
 
 <body>
 
-    <h1>Panel de Administración</h1>
+    <h1>Dashboard de Administración</h1>
 
-    <table border="1">
+    <!-- ============ 1. TARJETAS RESUMEN ============ -->
+    {% set pendientes = por_estado | selectattr("nombre_estado", "equalto", "Pendiente") | map(attribute="total") | list %}
+    {% set proceso    = por_estado | selectattr("nombre_estado", "equalto", "En proceso") | map(attribute="total") | list %}
+    {% set resueltos  = por_estado | selectattr("nombre_estado", "equalto", "Resuelto") | map(attribute="total") | list %}
+    {% set alta       = por_prioridad | selectattr("nombre_prioridad", "equalto", "Alta") | map(attribute="total") | list %}
+
+    <div class="dashboard">
+        <div class="card c-total">
+            <h2>{{ stats.total }}</h2><p>Total de reportes</p>
+        </div>
+        <div class="card c-alta">
+            <h2>{{ alta[0] if alta else 0 }}</h2><p>Prioridad alta ⚠️</p>
+        </div>
+        <div class="card c-pend">
+            <h2>{{ pendientes[0] if pendientes else 0 }}</h2><p>Pendientes</p>
+        </div>
+        <div class="card c-proc">
+            <h2>{{ proceso[0] if proceso else 0 }}</h2><p>En proceso</p>
+        </div>
+        <div class="card c-res">
+            <h2>{{ resueltos[0] if resueltos else 0 }}</h2><p>Resueltos</p>
+        </div>
+    </div>
+
+    <!-- ============ 2. GRAFICAS ============ -->
+    <div class="graficas">
+
+        <!-- Reportes por estado -->
+        {% if por_estado %}
+        {% set max_estado = por_estado | map(attribute="total") | max %}
+        <div class="panel">
+            <h3>Reportes por estado</h3>
+            {% for e in por_estado %}
+            <div class="fila-barra">
+                <div class="etiqueta">{{ e.nombre_estado }}</div>
+                <div class="barra-fondo">
+                    <div class="barra-relleno"
+                         style="width: {{ ((e.total / max_estado * 100) | round | int) if max_estado else 0 }}%">
+                    </div>
+                </div>
+                <div class="contador">{{ e.total }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Reportes por prioridad -->
+        {% if por_prioridad %}
+        {% set max_prio = por_prioridad | map(attribute="total") | max %}
+        <div class="panel">
+            <h3>Reportes por prioridad</h3>
+            {% for p in por_prioridad %}
+            <div class="fila-barra">
+                <div class="etiqueta">{{ p.nombre_prioridad }}</div>
+                <div class="barra-fondo">
+                    <div class="barra-relleno barra-{{ p.nombre_prioridad | lower }}"
+                         style="width: {{ ((p.total / max_prio * 100) | round | int) if max_prio else 0 }}%">
+                    </div>
+                </div>
+                <div class="contador">{{ p.total }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Reportes por area -->
+        {% if por_area %}
+        {% set max_area = por_area | map(attribute="total") | max %}
+        <div class="panel">
+            <h3>Reportes por área</h3>
+            {% for a in por_area %}
+            <div class="fila-barra">
+                <div class="etiqueta">{{ a.nombre_area }}</div>
+                <div class="barra-fondo">
+                    <div class="barra-relleno"
+                         style="width: {{ ((a.total / max_area * 100) | round | int) if max_area else 0 }}%">
+                    </div>
+                </div>
+                <div class="contador">{{ a.total }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <hr>
+
+    <!-- ============ 3. TABLA DE REPORTES (editable) ============ -->
+    <h2>Lista de reportes</h2>
+    <table>
         <tr>
             <th>ID</th>
             <th>Lugar</th>
             <th>Problema</th>
             <th>Prioridad</th>
             <th>Estado</th>
-            <th>Reporte</th>
+            <th>Acción</th>
         </tr>
 
         {% for r in reportes %}
@@ -34,8 +160,8 @@
             </td>
             <td>{{ r.nombre_estado }}</td>
             <td>
-              <button data-id="{{ r.id_reporte }}" onclick="verReporte(Number(this.dataset.id))">
-                    Ver
+                <button onclick="verReporte({{ r.id_reporte }})">
+                    Ver / Editar
                 </button>
             </td>
         </tr>
@@ -47,12 +173,12 @@
     </table>
     <hr>
 
+    <!-- ============ 4. PANEL DE EDICION ============ -->
     <div id="detalleReporte" style="display:none;">
     </div>
 
-    <script id="datos-flask" type="application/json">
+    <script>
     // Datos que vienen de Flask (base de datos)
-    
     const REPORTES     = {{ reportes|tojson }};
     const PRIORIDADES  = {{ prioridades|tojson }};
     const ESTADOS      = {{ estados|tojson }};
@@ -60,11 +186,9 @@
     let reporteActual = null;
 
     function verReporte(id){
-        // Buscar el reporte completo en los datos
         reporteActual = REPORTES.find(r => r.id_reporte === id);
         if (!reporteActual) return;
 
-        // Construir las opciones de los select con los valores de la BD
         const opcionesPrioridad = PRIORIDADES.map(p =>
             `<option value="${p.id_prioridad}"
                 ${p.id_prioridad === reporteActual.id_prioridad ? "selected" : ""}>
@@ -87,6 +211,7 @@
 
         const detalle = document.getElementById("detalleReporte");
         detalle.style.display = "block";
+        detalle.scrollIntoView({behavior: "smooth"});
         detalle.innerHTML = `
             <button onclick="cerrarReporte()">
                 ↩ Volver a la lista
