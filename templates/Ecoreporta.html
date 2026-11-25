@@ -17,6 +17,7 @@
       background-color: #c23535; color: white; border: none; cursor: pointer;
     }
     button:hover { background-color: #1a5bb8; }
+    button:disabled { background-color: #999; cursor: not-allowed; }
     footer { margin-top: 30px; }
 
     /* ---------- SEMAFORO ---------- */
@@ -34,7 +35,6 @@
     #resultadoIA { display: none; max-width: 400px; margin-top: 15px;
                    padding: 12px; border: 1px solid #ccc; border-radius: 8px; }
   </style>
-<base target="_blank">
 </head>
 <body>
 
@@ -52,17 +52,8 @@
     </select>
 
     <label for="problema">Selecciona el problema:</label>
-    <select id="problema" name="problema" required>
-      <option value="">-- Elige un problema --</option>
-      <option value="Pupitre dañado">Pupitre dañado</option>
-      <option value="Proyector descompuesto">Proyector descompuesto</option>
-      <option value="Aire acondicionado dañado">Aire acondicionado dañado</option>
-      <option value="Baño fuera de servicio">Baño fuera de servicio</option>
-      <option value="Falta de limpieza">Falta de limpieza</option>
-      <option value="Lámpara dañada">Lámpara dañada</option>
-      <option value="Fuga de agua">Fuga de agua</option>
-      <option value="Problema eléctrico">Problema eléctrico</option>
-      <option value="Otro">Otro</option>
+    <select id="problema" name="problema" required disabled>
+      <option value="">-- Primero elige un lugar --</option>
     </select>
 
     <label for="descripcion">Descripción del problema:</label>
@@ -73,7 +64,7 @@
     <input type="file" id="foto" name="foto" accept="image/jpeg,image/png,image/webp" required>
     <img id="preview" width="250" alt="Vista previa de la fotografía">
 
-    <button type="submit">Enviar reporte</button>
+    <button type="submit" id="btnEnviar">Enviar reporte</button>
   </form>
 
   <p id="mensaje"></p>
@@ -95,20 +86,25 @@
     const mensaje = document.getElementById("mensaje");
     const foto = document.getElementById("foto");
     const preview = document.getElementById("preview");
+    const selectLugar = document.getElementById("lugar");
+    const selectProblema = document.getElementById("problema");
+    const btnEnviar = document.getElementById("btnEnviar");
+
+    let enviando = false;
 
     // ----- Vista previa de la fotografia -----
     let urlVistaPrevia = "";
     foto.addEventListener("change", function () {
       const archivo = foto.files[0];
       if (!archivo) { preview.removeAttribute("src"); return; }
-      // Validacion en el navegador (el servidor la vuelve a verificar)
+
       if (!["image/jpeg", "image/png", "image/webp"].includes(archivo.type)) {
         mensaje.textContent = "Solo se permiten fotos JPG, PNG o WEBP.";
         foto.value = "";
         return;
       }
       if (archivo.size > 5 * 1024 * 1024) {
-        mensaje.textContent = "La foto supera 5 MB. Elige una mas pequeña.";
+        mensaje.textContent = "La foto supera 5 MB. Elige una más pequeña.";
         foto.value = "";
         return;
       }
@@ -118,10 +114,76 @@
       mensaje.textContent = "";
     });
 
+    // ----- Problemas frecuentes según el lugar -----
+    const PROBLEMAS = [
+      "Pupitre dañado",
+      "Proyector descompuesto",
+      "Aire acondicionado dañado",
+      "Baño fuera de servicio",
+      "Falta de limpieza",
+      "Lámpara dañada",
+      "Fuga de agua",
+      "Problema eléctrico",
+      "Otro"
+    ];
+
+    const FRECUENTES = {
+      "1": ["Fuga de agua", "Falta de limpieza", "Otro"],
+      "2": ["Falta de limpieza", "Baño fuera de servicio", "Otro"],
+      "3": ["Pupitre dañado", "Lámpara dañada", "Proyector descompuesto",
+            "Aire acondicionado dañado", "Problema eléctrico"]
+    };
+
+    selectLugar.addEventListener("change", function () {
+      const idLugar = selectLugar.value;
+      selectProblema.innerHTML = "";
+
+      const prompt = document.createElement("option");
+      prompt.value = "";
+      prompt.textContent = "-- Elige un problema --";
+      selectProblema.appendChild(prompt);
+
+      if (!idLugar) {
+        selectProblema.disabled = true;
+        return;
+      }
+
+      const frecuentes = FRECUENTES[idLugar] || [];
+      if (frecuentes.length > 0) {
+        const grupoF = document.createElement("optgroup");
+        grupoF.label = "⭐ Más frecuentes aquí";
+        frecuentes.forEach(function (p) {
+          const op = document.createElement("option");
+          op.value = p;
+          op.textContent = p;
+          grupoF.appendChild(op);
+        });
+        selectProblema.appendChild(grupoF);
+      }
+
+      const grupoTodos = document.createElement("optgroup");
+      grupoTodos.label = "Todos los problemas";
+      PROBLEMAS.forEach(function (p) {
+        if (frecuentes.includes(p)) return;
+        const op = document.createElement("option");
+        op.value = p;
+        op.textContent = p;
+        grupoTodos.appendChild(op);
+      });
+      selectProblema.appendChild(grupoTodos);
+
+      selectProblema.disabled = false;
+    });
+
     // ----- Envio del reporte (UN solo handler) -----
     formulario.addEventListener("submit", async function (evento) {
       evento.preventDefault();
-      mensaje.textContent = "La IA esta evaluando el reporte...";
+      if (enviando) return;
+
+      enviando = true;
+      btnEnviar.disabled = true;
+      btnEnviar.textContent = "Enviando...";
+      mensaje.textContent = "La IA está evaluando el reporte...";
 
       try {
         const respuesta = await fetch("/api/reportes", {
@@ -144,7 +206,6 @@
         document.getElementById("motivoTxt").textContent = resultado.motivo;
         mensaje.textContent = "";
 
-        // Alerta visible si es prioridad ALTA (la notificacion al admin llega en etapa de notificaciones)
         if (resultado.prioridad === "Alta") {
           alert("REPORTE DE PRIORIDAD ALTA - Folio #" + resultado.id_reporte +
                 "\n\n" + resultado.motivo);
@@ -154,16 +215,19 @@
 
         // Pasar la prioridad de la IA a la pagina de gracias (After_reporte)
         const parametros = new URLSearchParams({
-            folio: resultado.id_reporte,
-            prioridad: resultado.prioridad,
-            confianza: resultado.confianza,
-            motivo: resultado.motivo
+          folio: resultado.id_reporte,
+          prioridad: resultado.prioridad,
+          confianza: resultado.confianza,
+          motivo: resultado.motivo
         });
         window.location.href = "{{ url_for('After_reporte') }}?" + parametros.toString();
 
       } catch (error) {
         console.error(error);
         mensaje.textContent = error.message;
+        enviando = false;
+        btnEnviar.disabled = false;
+        btnEnviar.textContent = "Enviar reporte";
       }
     });
   </script>
