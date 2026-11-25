@@ -16,7 +16,7 @@
     h1 { margin-top: 0; }
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 15px;
       margin-bottom: 30px;
     }
@@ -28,12 +28,12 @@
     }
     .card h3 {
       margin: 0 0 8px 0;
-      font-size: 14px;
+      font-size: 13px;
       color: #666;
       text-transform: uppercase;
     }
     .card .numero {
-      font-size: 28px;
+      font-size: 26px;
       font-weight: bold;
     }
     table {
@@ -43,11 +43,13 @@
       border-radius: 10px;
       overflow: hidden;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      font-size: 14px;
     }
     th, td {
-      padding: 12px 14px;
+      padding: 10px 12px;
       text-align: left;
       border-bottom: 1px solid #eee;
+      vertical-align: middle;
     }
     th {
       background: #1a73e8;
@@ -66,32 +68,44 @@
       background: #1a73e8;
       color: white;
       border: none;
+      margin: 2px 0;
     }
     button:hover { background: #1557b0; }
     button.peligro {
       background: #d93025;
     }
     button.peligro:hover { background: #b3261e; }
-    .badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .badge-Baja   { background: #e6f4ea; color: #137333; }
-    .badge-Media  { background: #fef7e0; color: #b06000; }
-    .badge-Alta   { background: #fce8e6; color: #c5221f; }
     .motivo {
       font-size: 12px;
       color: #555;
-      max-width: 280px;
+      max-width: 220px;
     }
-    footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #ddd;
-      font-size: 14px;
+    .foto-mini {
+      width: 70px;
+      height: 70px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      cursor: pointer;
+    }
+    .sin-foto {
+      font-size: 12px;
+      color: #999;
+    }
+    /* Modal para ver la foto grande */
+    #modalFoto {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    #modalFoto img {
+      max-width: 90%;
+      max-height: 90%;
+      border-radius: 8px;
     }
     #mensaje {
       margin: 15px 0;
@@ -101,21 +115,25 @@
     }
     #mensaje.ok { background: #e6f4ea; color: #137333; display: block; }
     #mensaje.error { background: #fce8e6; color: #c5221f; display: block; }
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #ddd;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
 
   <h1>Dashboard de Administración</h1>
-
   <div id="mensaje"></div>
 
-  <!-- ============ ESTADÍSTICAS ============ -->
+  <!-- Estadísticas -->
   <div class="stats">
     <div class="card">
       <h3>Total de reportes</h3>
       <div class="numero">{{ stats.total if stats else 0 }}</div>
     </div>
-
     {% for e in por_estado %}
     <div class="card">
       <h3>{{ e.nombre_estado }}</h3>
@@ -124,7 +142,6 @@
     {% endfor %}
   </div>
 
-  <!-- ============ TABLA DE REPORTES ============ -->
   <h2>Reportes registrados</h2>
 
   {% if reportes %}
@@ -132,6 +149,7 @@
     <thead>
       <tr>
         <th>ID</th>
+        <th>Foto</th>
         <th>Fecha</th>
         <th>Área</th>
         <th>Problema</th>
@@ -146,10 +164,21 @@
       {% for r in reportes %}
       <tr id="fila-{{ r.id_reporte }}">
         <td>#{{ r.id_reporte }}</td>
+        <td>
+          {% if r.fotografia %}
+            <img 
+              src="{{ url_for('static', filename='UPLOADS/' + r.fotografia) }}" 
+              class="foto-mini"
+              alt="Foto del reporte"
+              onclick="verFoto('{{ url_for('static', filename='UPLOADS/' + r.fotografia) }}')">
+          {% else %}
+            <span class="sin-foto">Sin foto</span>
+          {% endif %}
+        </td>
         <td>{{ r.fecha }}</td>
         <td>{{ r.nombre_area }}</td>
         <td>{{ r.problema }}</td>
-        <td>{{ r.descripcion[:80] }}{% if r.descripcion|length > 80 %}...{% endif %}</td>
+        <td>{{ r.descripcion[:70] }}{% if r.descripcion|length > 70 %}...{% endif %}</td>
         <td>
           <select id="prioridad-{{ r.id_reporte }}">
             {% for p in prioridades %}
@@ -183,6 +212,11 @@
   <p>No hay reportes registrados todavía.</p>
   {% endif %}
 
+  <!-- Modal para ver foto grande -->
+  <div id="modalFoto" onclick="cerrarFoto()">
+    <img id="fotoGrande" src="" alt="Foto ampliada">
+  </div>
+
   <footer>
     <h4>Enlaces del plantel</h4>
     <a href="https://cbta197.edu.mx/" target="_blank">Portal del CBTa 197</a><br>
@@ -198,6 +232,15 @@
       el.textContent = texto;
       el.className = esError ? "error" : "ok";
       setTimeout(() => { el.style.display = "none"; el.className = ""; }, 4000);
+    }
+
+    function verFoto(url) {
+      document.getElementById("fotoGrande").src = url;
+      document.getElementById("modalFoto").style.display = "flex";
+    }
+
+    function cerrarFoto() {
+      document.getElementById("modalFoto").style.display = "none";
     }
 
     async function guardar(id) {
@@ -229,9 +272,7 @@
       if (!confirm("¿Seguro que quieres eliminar el reporte #" + id + "?")) return;
 
       try {
-        const res = await fetch("/administrador/eliminar/" + id, {
-          method: "POST"
-        });
+        const res = await fetch("/administrador/eliminar/" + id, { method: "POST" });
         const data = await res.json();
         if (data.ok) {
           document.getElementById("fila-" + id).remove();

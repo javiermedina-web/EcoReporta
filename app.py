@@ -11,9 +11,8 @@ app = Flask(__name__)
 UPLOAD_FOLDER = os.path.join("static", "UPLOADS")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB máximo
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB
 
-# Mapeo de nombre de prioridad → id de la tabla
 PRIORIDAD_A_ID = {
     "Baja": 1,
     "Media": 2,
@@ -46,7 +45,7 @@ def administrador():
 
     cursor = conexion.cursor(dictionary=True)
 
-    # Tabla de reportes
+    # Reportes + foto
     cursor.execute("""
         SELECT r.id_reporte, r.problema, r.descripcion, r.fotografia,
                DATE_FORMAT(r.fecha_reporte, '%d/%m/%Y %H:%i') AS fecha,
@@ -112,7 +111,7 @@ def administrador():
                            estados=estados)
 
 
-# ------------------------- API de la IA (pruebas) -------------------------
+# ------------------------- API de prueba de IA -------------------------
 
 @app.route("/api/predecir", methods=["POST"])
 def api_predecir():
@@ -120,12 +119,11 @@ def api_predecir():
     return jsonify(backend_python.predecir(datos.get("descripcion", "")))
 
 
-# ------------------------- API PRINCIPAL: crear reporte -------------------------
+# ------------------------- API PRINCIPAL: crear reporte + foto -------------------------
 
 @app.route("/api/reportes", methods=["POST"])
 def api_reportes():
     try:
-        # 1. Datos del formulario
         id_usuario = request.form.get("id_usuario", 1)
         id_area = request.form.get("id_area")
         problema = request.form.get("problema", "").strip()
@@ -134,32 +132,33 @@ def api_reportes():
         if not id_area or not problema or not descripcion:
             return jsonify({"ok": False, "mensaje": "Faltan datos obligatorios."}), 400
 
-        # 2. Llamar a la IA
+        # IA
         resultado_ia = backend_python.predecir(descripcion)
-        prioridad_nombre = resultado_ia["prioridad"]          # "Baja", "Media" o "Alta"
+        prioridad_nombre = resultado_ia["prioridad"]
         id_prioridad = PRIORIDAD_A_ID.get(prioridad_nombre, 2)
         confianza = resultado_ia["confianza"]
         motivo = resultado_ia["motivo"]
 
-        # 3. Guardar la foto (si viene)
+        # ----- Guardar la foto -----
         nombre_foto = None
         foto = request.files.get("foto")
         if foto and foto.filename:
             extension = foto.filename.rsplit(".", 1)[-1].lower()
             if extension not in ("jpg", "jpeg", "png", "webp"):
-                return jsonify({"ok": False, "mensaje": "Solo se permiten imágenes JPG, PNG o WEBP."}), 400
+                return jsonify({"ok": False, "mensaje": "Solo se permiten JPG, PNG o WEBP."}), 400
 
-            nombre_seguro = secure_filename(foto.filename)
             nombre_foto = f"reporte_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{extension}"
             ruta_completa = os.path.join(app.config["UPLOAD_FOLDER"], nombre_foto)
             foto.save(ruta_completa)
 
-        # 4. Guardar en la base de datos
+        # ----- Guardar en la base de datos -----
         conexion = obtener_conexion()
         if conexion is None:
             return jsonify({"ok": False, "mensaje": "No se pudo conectar a la base de datos."}), 500
 
         cursor = conexion.cursor()
+
+        # 1. Insertar el reporte (incluye el nombre de la foto)
         cursor.execute("""
             INSERT INTO reportes_incidencias
                 (id_usuario, id_area, id_estado, id_prioridad,
@@ -173,16 +172,30 @@ def api_reportes():
             id_prioridad,
             descripcion,
             problema,
-            nombre_foto,
+            nombre_foto,          # <-- aquí se guarda el nombre de la imagen
             prioridad_nombre,
             motivo
         ))
-        conexion.commit()
         id_reporte = cursor.lastrowid
+
+        # 2. También guardamos en la tabla imagenes_reporte (opcional pero recomendado)
+        if nombre_foto:
+            cursor.execute("""
+                INSERT INTO imagenes_reporte
+                    (id_reporte, nombre_archivo, ruta_archivo, fecha_subida, descripcion)
+                VALUES
+                    (%s, %s, %s, NOW(), %s)
+            """, (
+                id_reporte,
+                nombre_foto,
+                f"static/UPLOADS/{nombre_foto}",
+                f"Foto del reporte #{id_reporte}"
+            ))
+
+        conexion.commit()
         cursor.close()
         conexion.close()
 
-        # 5. Respuesta que espera el JavaScript del frontend
         return jsonify({
             "ok": True,
             "id_reporte": id_reporte,
@@ -196,7 +209,7 @@ def api_reportes():
         return jsonify({"ok": False, "mensaje": str(e)}), 500
 
 
-# ------------------------- Acciones del panel de administrador -------------------------
+# ------------------------- Acciones del panel -------------------------
 
 @app.route("/administrador/actualizar", methods=["POST"])
 def actualizar_reporte():
@@ -229,6 +242,7 @@ def eliminar_reporte(id_reporte):
     cursor = conexion.cursor()
     try:
         cursor.execute("DELETE FROM historial_reparaciones WHERE id_reporte = %s", (id_reporte,))
+        cursor.execute("DELETE FROM imagenes_reporte WHERE id_reporte = %s", (id_reporte,))
         cursor.execute("DELETE FROM reportes_incidencias WHERE id_reporte = %s", (id_reporte,))
         conexion.commit()
         cursor.close()
