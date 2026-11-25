@@ -1,26 +1,13 @@
-from flask import Flask, render_template, request, jsonify
-from conexion_db import obtener_conexion
-import backend_python
-import os
 from datetime import datetime
+from pathlib import Path
+from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
-
+from conexion_db import obtener_conexion
+import backend_python  # al importarlo, el modelo de IA queda cargado en memoria
 app = Flask(__name__)
 
-# Carpeta donde se guardan las fotos
-UPLOAD_FOLDER = os.path.join("static", "UPLOADS")
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB
 
-PRIORIDAD_A_ID = {
-    "Baja": 1,
-    "Media": 2,
-    "Alta": 3
-}
-
-
-# ------------------------- Páginas -------------------------
+# ------------------------- Paginas -------------------------
 
 @app.route("/")
 def index():
@@ -45,7 +32,7 @@ def administrador():
 
     cursor = conexion.cursor(dictionary=True)
 
-    # Reportes + foto
+    # Reportes con el nombre del area, la prioridad y el estado (JOINs)
     cursor.execute("""
         SELECT r.id_reporte, r.problema, r.descripcion, r.fotografia,
                DATE_FORMAT(r.fecha_reporte, '%d/%m/%Y %H:%i') AS fecha,
@@ -57,14 +44,17 @@ def administrador():
         JOIN areas_plantel a       ON r.id_area = a.id_area
         JOIN prioridades_reporte p ON r.id_prioridad = p.id_prioridad
         JOIN estados_reporte e     ON r.id_estado = e.id_estado
-        ORDER BY r.id_reporte DESC
+        ORDER BY r.id_reporte
     """)
     reportes = cursor.fetchall()
 
-    # Estadísticas
-    cursor.execute("SELECT COUNT(*) AS total FROM reportes_incidencias")
-    stats = cursor.fetchone()
+    # 2. Estadisticas para el DASHBOARD ---------------------------
 
+    # Total de reportes
+    cursor.execute("SELECT COUNT(*) AS total FROM reportes_incidencias")
+    stats = cursor.fetchone()  # {"total": N}
+
+    # Conteo por estado (LEFT JOIN para incluir estados sin reportes)
     cursor.execute("""
         SELECT e.nombre_estado, COUNT(r.id_reporte) AS total
         FROM estados_reporte e
@@ -74,6 +64,7 @@ def administrador():
     """)
     por_estado = cursor.fetchall()
 
+    # Conteo por prioridad
     cursor.execute("""
         SELECT p.nombre_prioridad, COUNT(r.id_reporte) AS total
         FROM prioridades_reporte p
@@ -83,6 +74,7 @@ def administrador():
     """)
     por_prioridad = cursor.fetchall()
 
+    # Conteo por area
     cursor.execute("""
         SELECT a.nombre_area, COUNT(r.id_reporte) AS total
         FROM areas_plantel a
@@ -92,121 +84,100 @@ def administrador():
     """)
     por_area = cursor.fetchall()
 
-    cursor.execute("SELECT id_prioridad, nombre_prioridad FROM prioridades_reporte ORDER BY nivel")
+    # 3. Listas para los select del editor ------------------------
+    cursor.execute("SELECT id_prioridad, nombre_prioridad "
+                    "FROM prioridades_reporte ORDER BY nivel")
     prioridades = cursor.fetchall()
 
-    cursor.execute("SELECT id_estado, nombre_estado FROM estados_reporte ORDER BY id_estado")
+    cursor.execute("SELECT id_estado, nombre_estado "
+                    "FROM estados_reporte ORDER BY id_estado")
     estados = cursor.fetchall()
 
     cursor.close()
     conexion.close()
 
-    return render_template("administrador.html",
-                           reportes=reportes,
-                           stats=stats,
-                           por_estado=por_estado,
-                           por_prioridad=por_prioridad,
-                           por_area=por_area,
-                           prioridades=prioridades,
-                           estados=estados)
+    return render_template("administrador.html", reportes=reportes,
+                           stats=stats, por_estado=por_estado,
+                           por_prioridad=por_prioridad, por_area=por_area,
+                           prioridades=prioridades, estados=estados)
 
 
-# ------------------------- API de prueba de IA -------------------------
+# ------------------------- API de la IA -------------------------
 
 @app.route("/api/predecir", methods=["POST"])
 def api_predecir():
     datos = request.get_json(force=True) or {}
     return jsonify(backend_python.predecir(datos.get("descripcion", "")))
 
+EXTENSIONES_PERMITIDAS = {".jpg", ".jpeg", ".png", ".webp"}
+MAPA_PRIORIDADES = {"Baja": 1, "Media": 2, "Alta": 3}
 
-# ------------------------- API PRINCIPAL: crear reporte + foto -------------------------
 
 @app.route("/api/reportes", methods=["POST"])
-def api_reportes():
+def crear_reporte():
+    id_usuario = request.form.get("id_usuario", 1)
+    id_area = request.form.get("id_area")
+    problema = (request.form.get("problema") or "").strip()
+    descripcion = (request.form.get("descripcion") or "").strip()
+    foto = request.files.get("foto")
+
+    if not id_area or not problema or not descripcion or not foto or foto.filename == "":
+        return jsonify({"ok": False, "mensaje": "Todos los campos y la fotografía son obligatorios."}), 400
+
+    ext = Path(secure_filename(foto.filename)).suffix.lower()
+    if ext not in EXTENSIONES_PERMITIDAS:
+        return jsonify({"ok": False, "mensaje": "Formato de imagen no válido. Usa JPG, PNG o WEBP."}), 400
+
+    # Guardar imagen en static/UPLOADS/
+    carpeta_uploads = Path(__file__).resolve().parent / "static" / "UPLOADS"
+    carpeta_uploads.mkdir(parents=True, exist_ok=True)
+    nombre_archivo = f"reporte_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+    foto.save(carpeta_uploads / nombre_archivo)
+    ruta_web = f"/static/UPLOADS/{nombre_archivo}"
+
+    # Evaluar prioridad con el modelo de IA
+    ia = backend_python.predecir(descripcion)
+    prioridad_texto = ia["prioridad"]
+    id_prioridad = MAPA_PRIORIDADES.get(prioridad_texto, 2)
+
+    conexion = obtener_conexion()
+    if conexion is None:
+        return jsonify({"ok": False, "mensaje": "No se pudo conectar a la base de datos."}), 500
+
+    cursor = conexion.cursor()
     try:
-        id_usuario = request.form.get("id_usuario", 1)
-        id_area = request.form.get("id_area")
-        problema = request.form.get("problema", "").strip()
-        descripcion = request.form.get("descripcion", "").strip()
-
-        if not id_area or not problema or not descripcion:
-            return jsonify({"ok": False, "mensaje": "Faltan datos obligatorios."}), 400
-
-        # IA
-        resultado_ia = backend_python.predecir(descripcion)
-        prioridad_nombre = resultado_ia["prioridad"]
-        id_prioridad = PRIORIDAD_A_ID.get(prioridad_nombre, 2)
-        confianza = resultado_ia["confianza"]
-        motivo = resultado_ia["motivo"]
-
-        # ----- Guardar la foto -----
-        nombre_foto = None
-        foto = request.files.get("foto")
-        if foto and foto.filename:
-            extension = foto.filename.rsplit(".", 1)[-1].lower()
-            if extension not in ("jpg", "jpeg", "png", "webp"):
-                return jsonify({"ok": False, "mensaje": "Solo se permiten JPG, PNG o WEBP."}), 400
-
-            nombre_foto = f"reporte_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{extension}"
-            ruta_completa = os.path.join(app.config["UPLOAD_FOLDER"], nombre_foto)
-            foto.save(ruta_completa)
-
-        # ----- Guardar en la base de datos -----
-        conexion = obtener_conexion()
-        if conexion is None:
-            return jsonify({"ok": False, "mensaje": "No se pudo conectar a la base de datos."}), 500
-
-        cursor = conexion.cursor()
-
-        # 1. Insertar el reporte (incluye el nombre de la foto)
+        ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("""
             INSERT INTO reportes_incidencias
-                (id_usuario, id_area, id_estado, id_prioridad,
-                 descripcion, fecha_reporte, problema, fotografia,
-                 prioridad, motivo_ia, estado)
-            VALUES
-                (%s, %s, 1, %s, %s, NOW(), %s, %s, %s, %s, 'Pendiente')
+                (id_usuario, id_area, id_estado, id_prioridad, descripcion,
+                 fecha_reporte, problema, fotografia, prioridad, motivo_ia, estado)
+            VALUES (%s, %s, 1, %s, %s, %s, %s, %s, %s, %s, 'Pendiente')
         """, (
-            id_usuario,
-            id_area,
-            id_prioridad,
-            descripcion,
-            problema,
-            nombre_foto,          # <-- aquí se guarda el nombre de la imagen
-            prioridad_nombre,
-            motivo
+            id_usuario, id_area, id_prioridad, descripcion[:250],
+            ahora, problema, ruta_web, prioridad_texto, ia["motivo"]
         ))
         id_reporte = cursor.lastrowid
 
-        # 2. También guardamos en la tabla imagenes_reporte (opcional pero recomendado)
-        if nombre_foto:
-            cursor.execute("""
-                INSERT INTO imagenes_reporte
-                    (id_reporte, nombre_archivo, ruta_archivo, fecha_subida, descripcion)
-                VALUES
-                    (%s, %s, %s, NOW(), %s)
-            """, (
-                id_reporte,
-                nombre_foto,
-                f"static/UPLOADS/{nombre_foto}",
-                f"Foto del reporte #{id_reporte}"
-            ))
+        cursor.execute("""
+            INSERT INTO imagenes_reporte
+                (id_reporte, nombre_archivo, ruta_archivo, fecha_subida, descripcion)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (id_reporte, nombre_archivo, ruta_web, ahora, problema))
 
         conexion.commit()
-        cursor.close()
-        conexion.close()
-
         return jsonify({
             "ok": True,
             "id_reporte": id_reporte,
-            "prioridad": prioridad_nombre,
-            "confianza": confianza,
-            "motivo": motivo
+            "prioridad": prioridad_texto,
+            "confianza": ia["confianza"],
+            "motivo": ia["motivo"]
         })
-
     except Exception as e:
-        print("Error en /api/reportes:", e)
-        return jsonify({"ok": False, "mensaje": str(e)}), 500
+        conexion.rollback()
+        return jsonify({"ok": False, "mensaje": f"Error al guardar en la BD: {e}"}), 500
+    finally:
+        cursor.close()
+        conexion.close()
 
 
 # ------------------------- Acciones del panel -------------------------
@@ -217,7 +188,7 @@ def actualizar_reporte():
 
     conexion = obtener_conexion()
     if conexion is None:
-        return jsonify({"ok": False, "error": "Sin conexión a la base de datos"}), 500
+        return jsonify({"ok": False, "error": "Sin conexion a la base de datos"}), 500
 
     cursor = conexion.cursor()
     cursor.execute("""
@@ -237,13 +208,16 @@ def actualizar_reporte():
 def eliminar_reporte(id_reporte):
     conexion = obtener_conexion()
     if conexion is None:
-        return jsonify({"ok": False, "error": "Sin conexión a la base de datos"}), 500
+        return jsonify({"ok": False, "error": "Sin conexion a la base de datos"}), 500
 
     cursor = conexion.cursor()
     try:
-        cursor.execute("DELETE FROM historial_reparaciones WHERE id_reporte = %s", (id_reporte,))
-        cursor.execute("DELETE FROM imagenes_reporte WHERE id_reporte = %s", (id_reporte,))
-        cursor.execute("DELETE FROM reportes_incidencias WHERE id_reporte = %s", (id_reporte,))
+        # historial_reparaciones NO tiene ON DELETE CASCADE: se borra antes.
+        # imagenes_reporte SI tiene ON DELETE CASCADE: se borra sola.
+        cursor.execute(
+            "DELETE FROM historial_reparaciones WHERE id_reporte = %s", (id_reporte,))
+        cursor.execute(
+            "DELETE FROM reportes_incidencias WHERE id_reporte = %s", (id_reporte,))
         conexion.commit()
         cursor.close()
         conexion.close()

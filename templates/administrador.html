@@ -1,289 +1,423 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Administración - Alerta Pantera</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #f4f6f9;
-      color: #222;
-    }
-    h1 { margin-top: 0; }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 15px;
-      margin-bottom: 30px;
-    }
-    .card {
-      background: white;
-      border-radius: 10px;
-      padding: 18px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-    .card h3 {
-      margin: 0 0 8px 0;
-      font-size: 13px;
-      color: #666;
-      text-transform: uppercase;
-    }
-    .card .numero {
-      font-size: 26px;
-      font-weight: bold;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      font-size: 14px;
-    }
-    th, td {
-      padding: 10px 12px;
-      text-align: left;
-      border-bottom: 1px solid #eee;
-      vertical-align: middle;
-    }
-    th {
-      background: #1a73e8;
-      color: white;
-      font-weight: 600;
-    }
-    tr:hover { background: #f8f9fa; }
-    select, button {
-      padding: 6px 10px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      font-size: 13px;
-    }
-    button {
-      cursor: pointer;
-      background: #1a73e8;
-      color: white;
-      border: none;
-      margin: 2px 0;
-    }
-    button:hover { background: #1557b0; }
-    button.peligro {
-      background: #d93025;
-    }
-    button.peligro:hover { background: #b3261e; }
-    .motivo {
-      font-size: 12px;
-      color: #555;
-      max-width: 220px;
-    }
-    .foto-mini {
-      width: 70px;
-      height: 70px;
-      object-fit: cover;
-      border-radius: 6px;
-      border: 1px solid #ddd;
-      cursor: pointer;
-    }
-    .sin-foto {
-      font-size: 12px;
-      color: #999;
-    }
-    /* Modal para ver la foto grande */
-    #modalFoto {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.75);
-      z-index: 1000;
-      justify-content: center;
-      align-items: center;
-    }
-    #modalFoto img {
-      max-width: 90%;
-      max-height: 90%;
-      border-radius: 8px;
-    }
-    #mensaje {
-      margin: 15px 0;
-      padding: 10px 15px;
-      border-radius: 6px;
-      display: none;
-    }
-    #mensaje.ok { background: #e6f4ea; color: #137333; display: block; }
-    #mensaje.error { background: #fce8e6; color: #c5221f; display: block; }
-    footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #ddd;
-      font-size: 14px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Administrador</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+
+        /* ---------- TARJETAS DEL DASHBOARD ---------- */
+        .dashboard { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 25px; }
+        .card {
+            flex: 1; min-width: 140px; padding: 15px;
+            border-radius: 10px; color: #fff; text-align: center;
+        }
+        .card h2 { margin: 5px 0; font-size: 32px; }
+        .card p  { margin: 0; font-size: 14px; }
+        .c-total    { background: #2e5e4e; }
+        .c-alta     { background: #c0392b; }
+        .c-pend     { background: #e67e22; }
+        .c-proc     { background: #2980b9; }
+        .c-res      { background: #27ae60; }
+
+        /* ---------- GRAFICAS DE BARRAS ---------- */
+        .graficas { display: flex; gap: 25px; flex-wrap: wrap; margin-bottom: 30px; }
+        .panel { flex: 1; min-width: 280px; }
+        .panel h3 { margin-bottom: 10px; }
+        .fila-barra { display: flex; align-items: center; margin-bottom: 6px; }
+        .fila-barra .etiqueta { width: 120px; font-size: 13px; }
+        .fila-barra .contador { width: 30px; text-align: right; font-size: 13px; margin-left: 5px; }
+        .barra-fondo { flex: 1; background: #e5e5e5; border-radius: 5px; height: 18px; }
+        .barra-relleno { height: 100%; border-radius: 5px; background: #2e5e4e; }
+        .barra-alta  { background: #c0392b; }
+        .barra-media { background: #e6b800; }
+        .barra-baja  { background: #27ae60; }
+
+        /* ---------- FILTROS (listas desplegables) ---------- */
+        .filtros {
+            display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;
+            background: #f4f4f4; padding: 12px; border-radius: 8px; margin-bottom: 10px;
+        }
+        .filtros label { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+        .filtros select { padding: 6px; min-width: 200px; }
+        #contadorFiltros { font-size: 13px; color: #555; }
+
+        /* ---------- TABLA (con correccion de textos largos) ---------- */
+        table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+        th, td { padding: 8px; border: 1px solid #bbb; vertical-align: top; }
+        th { background: #2e5e4e; color: #fff; }
+        tr:nth-child(even) { background: #f4f4f4; }
+
+        /* Las 3 reglas clave para que los textos largos NO rompan el layout:
+           1. table-layout: fixed + anchos por columna (abajo)
+           2. overflow-wrap: anywhere  -> corta palabras largas de mas de una linea
+           3. word-break: break-word  -> refuerzo para navegadores viejos      */
+        th:nth-child(1) { width: 55px; }
+        th:nth-child(2) { width: 16%; }
+        th:nth-child(3) { width: 20%; }
+        th:nth-child(4) { width: 11%; }
+        th:nth-child(5) { width: 11%; }
+        th:nth-child(6) { width: 90px; }
+        td {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        #sinResultados { display: none; text-align: center; color: #888; }
+        button { cursor: pointer; }
+
+        /* ---------- PANEL DE EDICION ---------- */
+        #detalleReporte {
+            margin-top: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 8px;
+            max-width: 700px;
+            overflow-wrap: anywhere;          /* descripciones largas tambien aqui */
+        }
+        #detalleReporte p { white-space: pre-wrap; }  /* respeta saltos de linea */
+        #detalleReporte img { max-width: 100%; height: auto; }
+    </style>
+<base target="_blank">
 </head>
+
 <body>
 
-  <h1>Dashboard de Administración</h1>
-  <div id="mensaje"></div>
+    <h1>Dashboard de Administración</h1>
 
-  <!-- Estadísticas -->
-  <div class="stats">
-    <div class="card">
-      <h3>Total de reportes</h3>
-      <div class="numero">{{ stats.total if stats else 0 }}</div>
+    <!-- ============ 1. TARJETAS RESUMEN ============ -->
+    {% set pendientes = por_estado | selectattr("nombre_estado", "equalto", "Pendiente") | map(attribute="total") | list %}
+    {% set proceso    = por_estado | selectattr("nombre_estado", "equalto", "En proceso") | map(attribute="total") | list %}
+    {% set resueltos  = por_estado | selectattr("nombre_estado", "equalto", "Resuelto") | map(attribute="total") | list %}
+    {% set alta       = por_prioridad | selectattr("nombre_prioridad", "equalto", "Alta") | map(attribute="total") | list %}
+
+    <div class="dashboard">
+        <div class="card c-total">
+            <h2>{{ stats.total }}</h2><p>Total de reportes</p>
+        </div>
+        <div class="card c-alta">
+            <h2>{{ alta[0] if alta else 0 }}</h2><p>Prioridad alta ⚠️</p>
+        </div>
+        <div class="card c-pend">
+            <h2>{{ pendientes[0] if pendientes else 0 }}</h2><p>Pendientes</p>
+        </div>
+        <div class="card c-proc">
+            <h2>{{ proceso[0] if proceso else 0 }}</h2><p>En proceso</p>
+        </div>
+        <div class="card c-res">
+            <h2>{{ resueltos[0] if resueltos else 0 }}</h2><p>Resueltos</p>
+        </div>
     </div>
-    {% for e in por_estado %}
-    <div class="card">
-      <h3>{{ e.nombre_estado }}</h3>
-      <div class="numero">{{ e.total }}</div>
+
+    <!-- ============ 2. GRAFICAS ============ -->
+    <div class="graficas">
+
+        {% if por_estado %}
+        {% set max_estado = por_estado | map(attribute="total") | max %}
+        <div class="panel">
+            <h3>Reportes por estado</h3>
+            {% for e in por_estado %}
+            <div class="fila-barra">
+                <div class="etiqueta">{{ e.nombre_estado }}</div>
+                <div class="barra-fondo">
+                    <div class="barra-relleno"
+                         style="width: {{ ((e.total / max_estado * 100) | round | int) if max_estado else 0 }}%">
+                    </div>
+                </div>
+                <div class="contador">{{ e.total }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if por_prioridad %}
+        {% set max_prio = por_prioridad | map(attribute="total") | max %}
+        <div class="panel">
+            <h3>Reportes por prioridad</h3>
+            {% for p in por_prioridad %}
+            <div class="fila-barra">
+                <div class="etiqueta">{{ p.nombre_prioridad }}</div>
+                <div class="barra-fondo">
+                    <div class="barra-relleno barra-{{ p.nombre_prioridad | lower }}"
+                         style="width: {{ ((p.total / max_prio * 100) | round | int) if max_prio else 0 }}%">
+                    </div>
+                </div>
+                <div class="contador">{{ p.total }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if por_area %}
+        {% set max_area = por_area | map(attribute="total") | max %}
+        <div class="panel">
+            <h3>Reportes por área</h3>
+            {% for a in por_area %}
+            <div class="fila-barra">
+                <div class="etiqueta">{{ a.nombre_area }}</div>
+                <div class="barra-fondo">
+                    <div class="barra-relleno"
+                         style="width: {{ ((a.total / max_area * 100) | round | int) if max_area else 0 }}%">
+                    </div>
+                </div>
+                <div class="contador">{{ a.total }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
-    {% endfor %}
-  </div>
 
-  <h2>Reportes registrados</h2>
+    <hr>
 
-  {% if reportes %}
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Foto</th>
-        <th>Fecha</th>
-        <th>Área</th>
-        <th>Problema</th>
-        <th>Descripción</th>
-        <th>Prioridad</th>
-        <th>Estado</th>
-        <th>Motivo IA</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in reportes %}
-      <tr id="fila-{{ r.id_reporte }}">
-        <td>#{{ r.id_reporte }}</td>
-        <td>
-          {% if r.fotografia %}
-            <img 
-              src="{{ url_for('static', filename='UPLOADS/' + r.fotografia) }}" 
-              class="foto-mini"
-              alt="Foto del reporte"
-              onclick="verFoto('{{ url_for('static', filename='UPLOADS/' + r.fotografia) }}')">
-          {% else %}
-            <span class="sin-foto">Sin foto</span>
-          {% endif %}
-        </td>
-        <td>{{ r.fecha }}</td>
-        <td>{{ r.nombre_area }}</td>
-        <td>{{ r.problema }}</td>
-        <td>{{ r.descripcion[:70] }}{% if r.descripcion|length > 70 %}...{% endif %}</td>
-        <td>
-          <select id="prioridad-{{ r.id_reporte }}">
-            {% for p in prioridades %}
-            <option value="{{ p.id_prioridad }}"
-              {% if p.id_prioridad == r.id_prioridad %}selected{% endif %}>
-              {{ p.nombre_prioridad }}
-            </option>
-            {% endfor %}
-          </select>
-        </td>
-        <td>
-          <select id="estado-{{ r.id_reporte }}">
-            {% for e in estados %}
-            <option value="{{ e.id_estado }}"
-              {% if e.id_estado == r.id_estado %}selected{% endif %}>
-              {{ e.nombre_estado }}
-            </option>
-            {% endfor %}
-          </select>
-        </td>
-        <td class="motivo">{{ r.motivo_ia or '—' }}</td>
-        <td>
-          <button onclick="guardar({{ r.id_reporte }})">Guardar</button>
-          <button class="peligro" onclick="eliminar({{ r.id_reporte }})">Eliminar</button>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p>No hay reportes registrados todavía.</p>
-  {% endif %}
+    <!-- ============ 3. FILTROS DESPLEGABLES ============ -->
+    <h2>Lista de reportes</h2>
 
-  <!-- Modal para ver foto grande -->
-  <div id="modalFoto" onclick="cerrarFoto()">
-    <img id="fotoGrande" src="" alt="Foto ampliada">
-  </div>
+    <div class="filtros">
+        <label>
+            Área:
+            <select id="filtroArea">
+                <option value="">Todas las áreas</option>
+            </select>
+        </label>
+        <label>
+            Tipo de problema:
+            <select id="filtroProblema">
+                <option value="">Todos los problemas</option>
+            </select>
+        </label>
+        <button type="button" id="btnLimpiar">✖ Limpiar filtros</button>
+    </div>
+    <p id="contadorFiltros"></p>
 
-  <footer>
-    <h4>Enlaces del plantel</h4>
-    <a href="https://cbta197.edu.mx/" target="_blank">Portal del CBTa 197</a><br>
-    <a href="https://www.instagram.com/cbta197/?hl=en" target="_blank">Instagram</a><br>
-    <a href="https://www.facebook.com/CBTA197OFICIAL" target="_blank">Facebook</a>
-    <p>&copy; 2026 EcoReporta - CBTa 197</p>
-    <button onclick="window.location.href='{{ url_for('index') }}'">Volver al inicio</button>
-  </footer>
+    <!-- ============ 4. TABLA DE REPORTES (editable) ============ -->
+    <table id="tablaReportes">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Lugar</th>
+            <th>Problema</th>
+            <th>Prioridad</th>
+            <th>Estado</th>
+            <th>Acción</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for r in reportes %}
+        <tr data-area="{{ r.nombre_area }}" data-problema="{{ r.problema }}">
+            <td>{{ "%03d" % r.id_reporte }}</td>
+            <td>{{ r.nombre_area }}</td>
+            <td>{{ r.problema }}</td>
+            <td>
+                {% if r.nombre_prioridad == "Alta" %}🔴
+                {% elif r.nombre_prioridad == "Media" %}🟡
+                {% else %}🟢{% endif %}
+                {{ r.nombre_prioridad }}
+            </td>
+            <td>{{ r.nombre_estado }}</td>
+            <td>
+                <button onclick="verReporte({{ r.id_reporte }})">
+                    Ver / Editar
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+        <tr id="sinResultados">
+            <td colspan="6">No hay reportes que coincidan con los filtros.</td>
+        </tr>
+        </tbody>
+    </table>
+    <hr>
 
-  <script>
-    function mostrarMensaje(texto, esError = false) {
-      const el = document.getElementById("mensaje");
-      el.textContent = texto;
-      el.className = esError ? "error" : "ok";
-      setTimeout(() => { el.style.display = "none"; el.className = ""; }, 4000);
-    }
+    <!-- ============ 5. PANEL DE EDICION ============ -->
+    <div id="detalleReporte" style="display:none;">
+    </div>
 
-    function verFoto(url) {
-      document.getElementById("fotoGrande").src = url;
-      document.getElementById("modalFoto").style.display = "flex";
-    }
+    <script>
+    // Datos que vienen de Flask (base de datos)
+    const REPORTES     = {{ reportes|tojson }};
+    const PRIORIDADES  = {{ prioridades|tojson }};
+    const ESTADOS      = {{ estados|tojson }};
 
-    function cerrarFoto() {
-      document.getElementById("modalFoto").style.display = "none";
-    }
+    let reporteActual = null;
 
-    async function guardar(id) {
-      const id_prioridad = document.getElementById("prioridad-" + id).value;
-      const id_estado = document.getElementById("estado-" + id).value;
+    // ============ FILTROS DESPLEGABLES ============
+    // Llenar las listas con los valores UNICOS que existen en los reportes
+    function llenarFiltros(){
+        const selectArea = document.getElementById("filtroArea");
+        const selectProblema = document.getElementById("filtroProblema");
 
-      try {
-        const res = await fetch("/administrador/actualizar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id_reporte: id,
-            id_prioridad: parseInt(id_prioridad),
-            id_estado: parseInt(id_estado)
-          })
+        const areas = [...new Set(REPORTES.map(r => r.nombre_area))].sort();
+        const problemas = [...new Set(REPORTES.map(r => r.problema))].sort();
+
+        areas.forEach(a => {
+            const op = document.createElement("option");
+            op.value = a; op.textContent = a;
+            selectArea.appendChild(op);
         });
-        const data = await res.json();
-        if (data.ok) {
-          mostrarMensaje("Reporte #" + id + " actualizado correctamente.");
-        } else {
-          mostrarMensaje(data.error || "Error al actualizar", true);
-        }
-      } catch (err) {
-        mostrarMensaje("Error de conexión: " + err.message, true);
-      }
+        problemas.forEach(p => {
+            const op = document.createElement("option");
+            op.value = p; op.textContent = p;
+            selectProblema.appendChild(op);
+        });
     }
 
-    async function eliminar(id) {
-      if (!confirm("¿Seguro que quieres eliminar el reporte #" + id + "?")) return;
+    function filtrarTabla(){
+        const area = document.getElementById("filtroArea").value;
+        const problema = document.getElementById("filtroProblema").value;
+        let visibles = 0;
 
-      try {
-        const res = await fetch("/administrador/eliminar/" + id, { method: "POST" });
-        const data = await res.json();
-        if (data.ok) {
-          document.getElementById("fila-" + id).remove();
-          mostrarMensaje("Reporte #" + id + " eliminado.");
-        } else {
-          mostrarMensaje(data.error || "Error al eliminar", true);
-        }
-      } catch (err) {
-        mostrarMensaje("Error de conexión: " + err.message, true);
-      }
+        // Cada fila guarda su area y su problema en atributos data-*
+        document.querySelectorAll("#tablaReportes tbody tr[data-area]").forEach(fila => {
+            const coincideArea = !area || fila.dataset.area === area;
+            const coincideProblema = !problema || fila.dataset.problema === problema;
+            const mostrar = coincideArea && coincideProblema;
+            fila.style.display = mostrar ? "" : "none";
+            if (mostrar) visibles++;
+        });
+
+        document.getElementById("sinResultados").style.display = visibles ? "none" : "";
+        document.getElementById("contadorFiltros").textContent =
+            "Mostrando " + visibles + " de " + REPORTES.length + " reportes";
     }
-  </script>
+
+    llenarFiltros();
+    document.getElementById("filtroArea").addEventListener("change", filtrarTabla);
+    document.getElementById("filtroProblema").addEventListener("change", filtrarTabla);
+    document.getElementById("btnLimpiar").addEventListener("click", function(){
+        document.getElementById("filtroArea").value = "";
+        document.getElementById("filtroProblema").value = "";
+        filtrarTabla();
+    });
+    filtrarTabla();  // contador inicial
+
+    // ============ PANEL DE EDICION ============
+    function verReporte(id){
+        reporteActual = REPORTES.find(r => r.id_reporte === id);
+        if (!reporteActual) return;
+
+        const opcionesPrioridad = PRIORIDADES.map(p =>
+            `<option value="${p.id_prioridad}"
+                ${p.id_prioridad === reporteActual.id_prioridad ? "selected" : ""}>
+                ${p.nombre_prioridad}</option>`
+        ).join("");
+
+        const opcionesEstado = ESTADOS.map(e =>
+            `<option value="${e.id_estado}"
+                ${e.id_estado === reporteActual.id_estado ? "selected" : ""}>
+                ${e.nombre_estado}</option>`
+        ).join("");
+
+        const imagen = reporteActual.fotografia
+            ? `<img src="${reporteActual.fotografia}" width="250">`
+            : "<p><em>Sin fotografía</em></p>";
+
+        const motivo = reporteActual.motivo_ia
+            ? `<p><strong>Análisis IA:</strong> ${reporteActual.motivo_ia}</p>`
+            : "";
+
+        const detalle = document.getElementById("detalleReporte");
+        detalle.style.display = "block";
+        detalle.scrollIntoView({behavior: "smooth"});
+        detalle.innerHTML = `
+            <button onclick="cerrarReporte()">
+                ↩ Volver a la lista
+            </button>
+            <h2>Detalles del reporte #${reporteActual.id_reporte}</h2>
+            <p><strong>Lugar:</strong> ${reporteActual.nombre_area}</p>
+            <p><strong>Problema:</strong> ${reporteActual.problema}</p>
+            <p><strong>Descripción:</strong> ${reporteActual.descripcion}</p>
+            <p><strong>Fecha:</strong> ${reporteActual.fecha || ""}</p>
+            ${motivo}
+            <p><strong>Prioridad:</strong></p>
+            <select id="selPrioridad">${opcionesPrioridad}</select>
+            <br><br>
+            <p><strong>Estado:</strong></p>
+            <select id="selEstado">${opcionesEstado}</select>
+            <br><br>
+            <button onclick="guardarCambios()">
+                💾 Guardar cambios
+            </button>
+            <button onclick="eliminarReporte()">
+                🗑 Eliminar reporte
+            </button>
+            <br><br>
+            ${imagen}
+        `;
+    }
+
+    function cerrarReporte(){
+        document.getElementById("detalleReporte")
+            .style.display = "none";
+        reporteActual = null;
+    }
+
+    async function guardarCambios(){
+        if (!reporteActual) return;
+
+        const respuesta = await fetch("/administrador/actualizar", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                id_reporte: reporteActual.id_reporte,
+                id_prioridad: document.getElementById("selPrioridad").value,
+                id_estado: document.getElementById("selEstado").value
+            })
+        });
+        const datos = await respuesta.json();
+
+        if (datos.ok){
+            alert("Cambios guardados correctamente.");
+            location.reload();
+        } else {
+            alert("Error al guardar: " + (datos.error || "desconocido"));
+        }
+    }
+
+    async function eliminarReporte(){
+        if (!reporteActual) return;
+
+        const confirmar = confirm("¿Deseas eliminar este reporte?");
+        if (!confirmar) return;
+
+        const respuesta = await fetch(
+            "/administrador/eliminar/" + reporteActual.id_reporte,
+            {method: "POST"}
+        );
+        const datos = await respuesta.json();
+
+        if (datos.ok){
+            alert("Reporte eliminado.");
+            location.reload();
+        } else {
+            alert("Error al eliminar: " + (datos.error || "desconocido"));
+        }
+    }
+    </script>
+
+    <footer>
+        <hr>
+        <h4>Enlaces del plantel</h4>
+        <a href="https://cbta197.edu.mx/" target="_blank">
+            Portal del CBTa.197
+        </a>
+        <br>
+        <a href="https://www.instagram.com/cbta197/?hl=en"
+           target="_blank">
+            Instagram
+        </a>
+        <br>
+        <a href="https://www.facebook.com/CBTA197OFICIAL"
+           target="_blank">
+            Facebook
+        </a>
+        <p>&copy; 2026 EcoReporta - CBTa 197</p>
+        <button id="volverBtn">
+            Volver al inicio
+        </button>
+    </footer>
+    <script>
+    const volverBtn =
+    document.getElementById("volverBtn");
+    volverBtn.addEventListener("click", function(){
+        window.location.href = "{{ url_for('index') }}";
+    });
+    </script>
 </body>
 </html>

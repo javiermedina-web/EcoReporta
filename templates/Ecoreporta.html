@@ -34,6 +34,7 @@
     #resultadoIA { display: none; max-width: 400px; margin-top: 15px;
                    padding: 12px; border: 1px solid #ccc; border-radius: 8px; }
   </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -85,7 +86,7 @@
       <div class="luz" id="luzMedia">Media</div>
       <div class="luz" id="luzAlta">Alta</div>
     </div>
-    <p><strong>Seguridad de la IA:</strong> <span id="confianzaTxt"></span>%</p>
+    <p><strong>Confianza:</strong> <span id="confianzaTxt"></span></p>
     <p><strong>Motivo:</strong> <span id="motivoTxt"></span></p>
   </div>
 
@@ -117,79 +118,6 @@
       mensaje.textContent = "";
     });
 
-// ----- Problemas frecuentes segun el lugar -----
-
-// Lista maestra: TODOS los problemas posibles (los mismos 9 de siempre)
-const PROBLEMAS = [
-  "Pupitre dañado",
-  "Proyector descompuesto",
-  "Aire acondicionado dañado",
-  "Baño fuera de servicio",
-  "Falta de limpieza",
-  "Lámpara dañada",
-  "Fuga de agua",
-  "Problema eléctrico",
-  "Otro"
-];
-
-// FRECUENTES POR LUGAR (datos de prueba: ajustenlos con su maestro).
-// La clave debe coincidir EXACTAMENTE con el value del select "lugar" (1, 2, 3).
-const FRECUENTES = {
-  "1": ["Fuga de agua", "Falta de limpieza", "Otro"],              // Jardín Principal
-  "2": ["Falta de limpieza", "Baño fuera de servicio", "Otro"],    // Cafetería
-  "3": ["Pupitre dañado", "Lámpara dañada", "Proyector descompuesto",
-        "Aire acondicionado dañado", "Problema eléctrico"]         // Edificio A - Aulas
-};
-
-const selectLugar = document.getElementById("lugar");
-const selectProblema = document.getElementById("problema");
-
-selectLugar.addEventListener("change", function () {
-  const idLugar = selectLugar.value;
-  selectProblema.innerHTML = "";   // borra las opciones anteriores
-
-  // Opcion inicial (obligatoria para que "required" funcione)
-  const prompt = document.createElement("option");
-  prompt.value = "";
-  prompt.textContent = "-- Elige un problema --";
-  selectProblema.appendChild(prompt);
-
-  if (!idLugar) {                  // sin lugar elegido: select bloqueado
-    selectProblema.disabled = true;
-    return;
-  }
-  
-
-  // 1) Grupo: frecuentes en este lugar
-  const frecuentes = FRECUENTES[idLugar] || [];
-  if (frecuentes.length > 0) {
-    const grupoF = document.createElement("optgroup");
-    grupoF.label = "⭐ Más frecuentes aquí";
-    frecuentes.forEach(function (p) {
-      const op = document.createElement("option");
-      op.value = p;
-      op.textContent = p;
-      grupoF.appendChild(op);
-    });
-    selectProblema.appendChild(grupoF);
-  }
-
-  // 2) Grupo: todos los demas problemas (sin repetir los frecuentes)
-  const grupoTodos = document.createElement("optgroup");
-  grupoTodos.label = "Todos los problemas";
-  PROBLEMAS.forEach(function (p) {
-    if (frecuentes.includes(p)) return;   // ya aparecio arriba
-    const op = document.createElement("option");
-    op.value = p;
-    op.textContent = p;
-    grupoTodos.appendChild(op);
-  });
-  selectProblema.appendChild(grupoTodos);
-
-  selectProblema.disabled = false;
-});
-
-    
     // ----- Envio del reporte (UN solo handler) -----
     formulario.addEventListener("submit", async function (evento) {
       evento.preventDefault();
@@ -212,7 +140,7 @@ selectLugar.addEventListener("change", function () {
           document.getElementById("luz" + p).classList.remove("encendida");
         });
         document.getElementById("luz" + resultado.prioridad).classList.add("encendida");
-        document.getElementById("confianzaTxt").textContent = Math.round(resultado.seguridad * 100);
+        document.getElementById("confianzaTxt").textContent = resultado.confianza;
         document.getElementById("motivoTxt").textContent = resultado.motivo;
         mensaje.textContent = "";
 
@@ -224,7 +152,14 @@ selectLugar.addEventListener("change", function () {
           alert("Reporte guardado. Folio #" + resultado.id_reporte);
         }
 
-        window.location.href = "{{ url_for('After_reporte') }}";
+        // Pasar la prioridad de la IA a la pagina de gracias (After_reporte)
+        const parametros = new URLSearchParams({
+            folio: resultado.id_reporte,
+            prioridad: resultado.prioridad,
+            confianza: resultado.confianza,
+            motivo: resultado.motivo
+        });
+        window.location.href = "{{ url_for('After_reporte') }}?" + parametros.toString();
 
       } catch (error) {
         console.error(error);
